@@ -6,7 +6,16 @@ const bcrypt = require('bcryptjs');
 
 const jwt = require('jsonwebtoken');
 
+const authConfig = require('../config/auth.json');
+
 const router = express.Router();
+
+
+function generateToken(params = {}){
+    return jwt.sign(params, authConfig.secret,{
+        expiresIn: 86400,
+    });
+}
 
 router.post('/register', async(req, res) => {
     const { email } = req.body;
@@ -16,14 +25,16 @@ router.post('/register', async(req, res) => {
         
         const user = await User.create(req.body);
 
-        User.password = undefined;
+        user.password = undefined;
 
-        return res.send({ user });
+        return res.send({ 
+            user,
+            token: generateToken({id: user.id}) 
+        });
     }catch{
         return res.status(400).send({ error: 'Registration failed' })
     }
 });
-
 
 router.post('/authenticate', async (req, res) => {
     const { email, password } = req.body;
@@ -31,14 +42,20 @@ router.post('/authenticate', async (req, res) => {
     const user = await User.findOne({email}).select('+password');
 
     if(!user)
-        return res.status(400).send({error: 'User  not Found'})
+        return res.status(400).send({error: 'User not Found'})
     
     if(!await bcrypt.compare(password, user.password))
         return res.status(400).send({error:'Ivalid password'})
     
-    User.password = undefined;
+    user.password = undefined;
 
-    res.send({user})
+
+    res.send({
+        user, 
+        token: generateToken({id: user.id}),
+    })
 })
+
+
 
 module.exports = app => app.use('/auth', router);
